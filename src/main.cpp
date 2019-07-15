@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <stdlib.h>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
@@ -13,6 +14,49 @@
 using nlohmann::json;
 using std::string;
 using std::vector;
+
+bool get_vehicle_ahead(vector<vector<double>> &sensor_fusion, int lane, double car_s, vector<double> &rVehicle) {
+  // Returns a true if a vehicle is found ahead of the current vehicle, false
+  //   otherwise. The passed reference rVehicle is updated if a vehicle is found.
+  double min_s = 9999999;
+  bool found_vehicle = false;
+  vector<double> temp_vehicle;
+  for (auto it = sensor_fusion.begin(); it != sensor_fusion.end(); ++it) {
+    temp_vehicle = *it;
+    double d = temp_vehicle[6];
+    double s = temp_vehicle[5];
+
+    if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2) && s > car_s && s < min_s) {
+      min_s = s;
+      rVehicle = temp_vehicle;
+      found_vehicle = true;
+    }
+  }
+
+  return found_vehicle;
+}
+
+bool get_vehicle_behind(vector<vector<double>> &sensor_fusion, int lane, double car_s, vector<double> &rVehicle) {
+  // Returns a true if a vehicle is found ahead of the current vehicle, false
+  //   otherwise. The passed reference rVehicle is updated if a vehicle is found.
+  double max_s = -9999999;
+  bool found_vehicle = false;
+  vector<double> temp_vehicle;
+  for (auto it = sensor_fusion.begin(); it != sensor_fusion.end(); ++it) {
+    temp_vehicle = *it;
+    double d = temp_vehicle[6];
+    double s = temp_vehicle[5];
+
+    if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2) && s < car_s && s > max_s) {
+      max_s = s;
+      rVehicle = temp_vehicle;
+      found_vehicle = true;
+    }
+  }
+
+  return found_vehicle;
+}
+
 
 int main() {
   uWS::Hub h;
@@ -55,7 +99,7 @@ int main() {
   int lane = 1;
 
   // Have a reference velocity to target
-  double ref_vel = 49.5; // mph
+  double ref_vel = 0; // mph
 
   h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy,&lane]
@@ -96,6 +140,49 @@ int main() {
           auto sensor_fusion = j[1]["sensor_fusion"];
 
           int prev_size = previous_path_x.size();
+
+          if (prev_size > 0) {
+            car_s = end_path_s;
+          }
+
+          bool too_close = false;
+
+          // find ref_v to use
+          for (int i = 0; i < sensor_fusion.size(); i++) {
+            // car is in my lane
+            float d = sensor_fusion[i][6];
+            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+
+              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+              double check_car_s = sensor_fusion[i][5];
+
+              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+              // check s values greater than mine and s gap
+              if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
+
+                // Do some logic here, lower reference velocity so we don't crash into the car in front of us, could
+                // also flag to try to change langes.
+                // ref_vel = 29.5; // mph
+                too_close = true;
+                if (lane == 0) {
+                  lane = 1;
+                } else if (lane == 1) {
+                  int laneChange = rand() % 2 + 1;
+                  lane =  ( lane + laneChange ) % 3;
+                } else if (lane == 2) {
+                  lane = 1;
+                }
+              }
+            }
+          }
+
+          if (too_close) {
+            ref_vel -= 0.224;
+          } else if (ref_vel < 49.5) {
+            ref_vel += 0.224;
+          }
 
 
           // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
