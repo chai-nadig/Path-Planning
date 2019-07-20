@@ -15,47 +15,85 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
-bool get_vehicle_ahead(vector<vector<double>> &sensor_fusion, int lane, double car_s, vector<double> &rVehicle) {
-  // Returns a true if a vehicle is found ahead of the current vehicle, false
-  //   otherwise. The passed reference rVehicle is updated if a vehicle is found.
-  double min_s = 9999999;
-  bool found_vehicle = false;
-  vector<double> temp_vehicle;
-  for (auto it = sensor_fusion.begin(); it != sensor_fusion.end(); ++it) {
-    temp_vehicle = *it;
-    double d = temp_vehicle[6];
-    double s = temp_vehicle[5];
 
-    if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2) && s > car_s && s < min_s) {
-      min_s = s;
-      rVehicle = temp_vehicle;
-      found_vehicle = true;
-    }
+double get_lane(double car_d) {
+  if (0 <= car_d && car_d <= 4) {
+    return 0;
+  } else if (4 < car_d && car_d <= 8 ) {
+    return 1;
+  } else if (8 < car_d && car_d <= 12) {
+    return 2;
   }
-
-  return found_vehicle;
+  return -1;
 }
 
-bool get_vehicle_behind(vector<vector<double>> &sensor_fusion, int lane, double car_s, vector<double> &rVehicle) {
-  // Returns a true if a vehicle is found ahead of the current vehicle, false
-  //   otherwise. The passed reference rVehicle is updated if a vehicle is found.
-  double max_s = -9999999;
-  bool found_vehicle = false;
-  vector<double> temp_vehicle;
-  for (auto it = sensor_fusion.begin(); it != sensor_fusion.end(); ++it) {
-    temp_vehicle = *it;
-    double d = temp_vehicle[6];
-    double s = temp_vehicle[5];
+bool is_car_ahead(vector<vector<double>> sensor_fusion, double car_s, double car_d, int prev_size) {
+  double car_lane = get_lane(car_d);
+  for (int i = 0; i < sensor_fusion.size(); i ++) {
+    double check_car_d = sensor_fusion[i][6];
+    double check_car_lane = get_lane(check_car_d);
 
-    if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2) && s < car_s && s > max_s) {
-      max_s = s;
-      rVehicle = temp_vehicle;
-      found_vehicle = true;
+    if (car_lane == check_car_lane) {
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double check_car_s = sensor_fusion[i][5];
+
+      double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+      check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+
+      if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
+        return true;
+      }
     }
   }
-
-  return found_vehicle;
+  return false;
 }
+
+bool is_car_left(vector<vector<double>> sensor_fusion, double car_s, double car_d, int prev_size) {
+  double car_lane = get_lane(car_d);
+  for (int i = 0; i < sensor_fusion.size(); i ++) {
+    double check_car_d = sensor_fusion[i][6];
+    double check_car_lane = get_lane(check_car_d);
+
+    if (car_lane == check_car_lane + 1) {
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double check_car_s = sensor_fusion[i][5];
+
+      double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+      check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+
+      if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool is_car_right(vector<vector<double>> sensor_fusion, double car_s, double car_d, int prev_size) {
+  double car_lane = get_lane(car_d);
+  for (int i = 0; i < sensor_fusion.size(); i ++) {
+    double check_car_d = sensor_fusion[i][6];
+    double check_car_lane = get_lane(check_car_d);
+
+    if (car_lane == check_car_lane - 1) {
+      double vx = sensor_fusion[i][3];
+      double vy = sensor_fusion[i][4];
+      double check_car_s = sensor_fusion[i][5];
+
+      double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+      check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+
+      if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
 
 
 int main() {
@@ -145,45 +183,23 @@ int main() {
             car_s = end_path_s;
           }
 
-          bool too_close = false;
+          bool car_ahead = is_car_ahead(sensor_fusion, car_s, car_d, prev_size);
+          bool car_left = is_car_left(sensor_fusion, car_s, car_d, prev_size);
+          bool car_right = is_car_right(sensor_fusion, car_s, car_d, prev_size);
 
-          // find ref_v to use
-          for (int i = 0; i < sensor_fusion.size(); i++) {
-            // car is in my lane
-            float d = sensor_fusion[i][6];
-            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-
-              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
-              // check s values greater than mine and s gap
-              if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
-
-                // Do some logic here, lower reference velocity so we don't crash into the car in front of us, could
-                // also flag to try to change langes.
-                // ref_vel = 29.5; // mph
-                too_close = true;
-                if (lane == 0) {
-                  lane = 1;
-                } else if (lane == 1) {
-                  int laneChange = rand() % 2 + 1;
-                  lane =  ( lane + laneChange ) % 3;
-                } else if (lane == 2) {
-                  lane = 1;
-                }
+          if (car_ahead) {
+            if (!car_left && lane > 0) {
+              lane -= 1;
+            } else if (!car_right && lane < 2) {
+              lane += 1;
+            } else {
+              if (ref_vel < 49.5) {
+                ref_vel += 0.224;
+              } else {
+                ref_vel -= 0.224;
               }
             }
           }
-
-          if (too_close) {
-            ref_vel -= 0.224;
-          } else if (ref_vel < 49.5) {
-            ref_vel += 0.224;
-          }
-
 
           // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
           // Later we will interpolate these waypoints with a spline and fill it in with more points that control speed.
@@ -253,11 +269,11 @@ int main() {
           }
 
           // Debuging code
-          // std::cout << std::endl;
-          // for (int i = 0; i < ptsx.size(); i ++) {
-          //   std::cout << "ptsx[" << i << "]: " << ptsx[i] << " ";
-          //   std::cout << "ptsy[" << i << "]: " << ptsy[i] << std::endl;
-          // }
+          std::cout << std::endl;
+          for (int i = 0; i < ptsx.size(); i ++) {
+            std::cout << "ptsx[" << i << "]: " << ptsx[i] << " ";
+            std::cout << "ptsy[" << i << "]: " << ptsy[i] << std::endl;
+          }
 
           // create a spline
           tk::spline s;
@@ -275,7 +291,7 @@ int main() {
             next_y_vals.push_back(previous_path_y[i]);
           }
 
-          // Calculate how to break up spline points so that  we travel at our desired reference velocity
+          // Calculate how to break up spline points so that we travel at our desired reference velocity
           double target_x = 30.0;
           double target_y = s(target_x);
           double target_dist = sqrt(pow(target_x, 2) + pow(target_y, 2));
