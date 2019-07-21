@@ -194,68 +194,99 @@ int main() {
             car_s = end_path_s;
           }
 
-          if ((3.2 < car_d && car_d < 4.8) || ( 7.2 < car_d && car_d < 8.8)) {
-            changing_lanes = true;
-          } else {
-            changing_lanes = false;
-          }
+          vector<double> car_ahead(4);
+          vector<double> car_left(4);
+          vector<double> car_right(4);
 
-          vector<double> car_ahead = is_car_ahead(sensor_fusion, car_s, car_d, prev_size);
-          vector<bool> car_left = is_car_left(sensor_fusion, car_s, car_d, prev_size);
-          vector<bool> car_right = is_car_right(sensor_fusion, car_s, car_d, prev_size);
+          double car_ahead_min_s = 99999999;
 
-          double lane_changed = false;
+          for (int i = 0; i < sensor_fusion.size(); i++) {
+            double d = sensor_fusion[i][6];
 
-          if (!changing_lanes && car_ahead[0] == 1) { // car ahead in same lane
-            std::cout << "car ahead lane: " << lane << " ref_vel: " << ref_vel << " d: " << car_d;
-            if (car_ahead[1] == 1) { // car is too close
+            if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
+              car_ahead[0] = 1;
+              car_ahead[1] = lane;
 
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
 
-              if (!car_left[0] && lane > 0 ) { //No car to the left
-                std::cout << "no car to left";
-                lane -= 1;
-                lane_changed = true;
-              } else if (!car_right[0] && lane < 2) { // No car to the right
-                std::cout << "no car to right";
-                lane += 1;
-                lane_changed = true;
-              } else if (car_left[0] && !car_left[1] && lane > 0 ){
-                std::cout << "car to left not too close";
-                lane -= 1;
-                lane_changed = true;
-              } else if (car_right[0] && !car_right[1] && lane < 2) {
-                std::cout << "car to right not too close";
-                lane += 1;
-                lane_changed = true;
+              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+              double check_car_s = sensor_fusion[i][5];
+
+              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+              if ((check_car_s > car_s) && ((check_car_s - car_s) < 30) && check_car_s < car_ahead_min_s) {
+                car_ahead[2] = 1;
+                car_ahead[3] = check_speed;
+                car_ahead_min_s = check_car_s;
               }
+            } else if (lane + 1 <= 2 && d < (2 + 4 * (lane + 1) + 2) && d > (2 + 4 * (lane + 1) - 2)) {
+              car_right[0] = 1;
+              car_right[1] = lane + 1;
 
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
 
+              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+              double check_car_s = sensor_fusion[i][5];
 
-              if (!lane_changed) {
-                if (ref_vel > car_ahead[2]) {
-                  ref_vel -= 0.224;
-                  std::cout << "\nfollowing car ahead";
-                } else {
-                  ref_vel = car_ahead[2];
-                }
+              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+              if (abs(check_car_s - car_s) < 30) {
+                car_right[2] = 1;
               }
+            } else if (lane - 1 >= 0 && d < (2 + 4 * (lane - 1) + 2) && d > (2 + 4 * (lane - 1) - 2)) {
+              car_left[0] = 1;
+              car_left[1] = lane - 1;
 
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
 
-              std::cout << std::endl;
-            } else {
-              if (ref_vel < 49.5) {
-                std::cout << "increasing speed - car ahead not too close\n";
-                ref_vel += 0.224;
+              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+              double check_car_s = sensor_fusion[i][5];
+
+              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+              if (abs(check_car_s - car_s) < 30) {
+                car_left[2] = 1;
               }
             }
-
-
-
-            std::cout << std::endl;
-          } else if (ref_vel < 49.5) {
-            std::cout << "increasing speed \n";
-            ref_vel += 0.224;
           }
+
+
+          if (car_ahead[0] == 1) {
+            std::cout <<"There is a car ahead\n";
+            if (car_ahead[2] == 1) {
+              if (!car_left[0] && lane > 0) {
+                lane -= 1;
+                changing_lanes = true;
+                std::cout<<"Changing lanes left\n";
+              } else if (!car_right[0] && lane < 2) {
+                lane += 1;
+                changing_lanes = true;
+                std::cout<<"Changing lanes right\n";
+              } else if (car_left[0] && !car_left[2]) {
+                lane -= 1;
+                changing_lanes = true;
+                std::cout<<"Changing lanes left\n";
+              } else if (car_right[0] && !car_right[2]) {
+                lane += 1;
+                changing_lanes = true;
+                std::cout<<"Changing lanes right\n";
+              } else if (ref_vel > car_ahead[3]) {
+                ref_vel -= 0.224;
+                std::cout<<"Can't change lanes, reducing speed and following\n";
+              } else {
+                ref_vel = car_ahead[3];
+                std::cout<<"Can't change lanes, following\n";
+              }
+            } else if (ref_vel < 49.5) {
+              ref_vel += 0.224;
+              std::cout<<"Speeding up not close to car ahead\n";
+            }
+          } else if (ref_vel < 49.5) {
+            ref_vel += 0.224;
+            std::cout<<"Speeding up no car ahead\n";
+          }
+
+
 
 
           // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
@@ -308,15 +339,9 @@ int main() {
           vector<double> next_wp1;
           vector<double> next_wp2;
 
-          if (changing_lanes) {
-            next_wp0 = getXY(car_s + 15, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            next_wp1 = getXY(car_s + 30, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            next_wp2 = getXY(car_s + 45, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          } else {
-            next_wp0 = getXY(car_s + 30, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            next_wp1 = getXY(car_s + 60, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            next_wp2 = getXY(car_s + 90, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          }
+          next_wp0 = getXY(car_s + 30, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          next_wp1 = getXY(car_s + 60, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          next_wp2 = getXY(car_s + 90, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);
@@ -368,7 +393,7 @@ int main() {
           // Fill up the rest of our path planner after filling it with previous points, here we will always output 50 points
           for(int i = 1; i <= 50 - previous_path_x.size(); i++) {
             if (ref_vel < 49.5 && changing_lanes) {
-              std::cout << "increasing speed - changing lanes - car ahead not too close\n";
+              std::cout<<"Faster points as we're changing lanes\n";
               ref_vel += 0.224;
             }
 
@@ -392,6 +417,7 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
+          changing_lanes=false;
 
           json msgJson;
           msgJson["next_x"] = next_x_vals;
