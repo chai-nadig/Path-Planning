@@ -1,13 +1,5 @@
 # Path Planning
 
-## Compilation
-
-### The code compiles correctly.
-
-No changes were made in the cmake configuration. A new file was added [src/spline.h](./scr/spline.h). It is the [Cubic Spline interpolation implementation](http://kluge.in-chemnitz.de/opensource/spline/): a single .h file you can use splines instead of polynomials. It was a great suggestion from the classroom QA video. It works great.
-
-## Valid trajectories
-
 ### The car is able to drive at least 4.32 miles without incident.
 
 #### 4.36 miles
