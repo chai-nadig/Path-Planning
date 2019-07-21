@@ -13,10 +13,13 @@ No changes were made in the cmake configuration. A new file was added [src/splin
 
 ### The car is able to drive at least 4.32 miles without incident.
 
+#### 4.36 miles
 ![4.36 miles](4.36miles.png)
 
+#### 6 miles
 ![6 miles](6miles.png)
 
+#### 10 miles
 ![10 miles](10miles.png)
 
 ### The car drives according to the speed limit.
