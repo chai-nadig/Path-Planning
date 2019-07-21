@@ -27,8 +27,9 @@ double get_lane(double car_d) {
   return -1;
 }
 
-vector<bool> is_car_ahead(vector<vector<double>> sensor_fusion, double car_s, double car_d, int prev_size) {
-  vector<bool> vals = {false, false};
+vector<double> is_car_ahead(vector<vector<double>> sensor_fusion, double car_s, double car_d, int prev_size) {
+  vector<double> vals = {0, 0, 0};
+  double min_s = 999999999;
   double car_lane = get_lane(car_d);
   for (int i = 0; i < sensor_fusion.size(); i ++) {
     double check_car_d = sensor_fusion[i][6];
@@ -43,8 +44,10 @@ vector<bool> is_car_ahead(vector<vector<double>> sensor_fusion, double car_s, do
       double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
       check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
 
-      if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
+      if (((check_car_s > car_s) && ((check_car_s - car_s) < 30)) && check_car_s < min_s) {
         vals[1] = true;
+        vals[2] = check_speed;
+        min_s = check_car_s;
       }
     }
   }
@@ -191,36 +194,51 @@ int main() {
             car_s = end_path_s;
           }
 
-          vector<bool> car_ahead = is_car_ahead(sensor_fusion, car_s, car_d, prev_size);
+          if ((3.2 < car_d && car_d < 4.8) || ( 7.2 < car_d && car_d < 8.8)) {
+            changing_lanes = true;
+          } else {
+            changing_lanes = false;
+          }
+
+          vector<double> car_ahead = is_car_ahead(sensor_fusion, car_s, car_d, prev_size);
           vector<bool> car_left = is_car_left(sensor_fusion, car_s, car_d, prev_size);
           vector<bool> car_right = is_car_right(sensor_fusion, car_s, car_d, prev_size);
 
-          if (car_ahead[0]) { // car ahead in same lane
-            std::cout << "car ahead\n";
-            if (car_ahead[1]) { // car is too close
+          double lane_changed = false;
+
+          if (!changing_lanes && car_ahead[0] == 1) { // car ahead in same lane
+            std::cout << "car ahead lane: " << lane << " ref_vel: " << ref_vel << " d: " << car_d;
+            if (car_ahead[1] == 1) { // car is too close
+
 
               if (!car_left[0] && lane > 0 ) { //No car to the left
                 std::cout << "no car to left";
                 lane -= 1;
-                changing_lanes = true;
+                lane_changed = true;
               } else if (!car_right[0] && lane < 2) { // No car to the right
                 std::cout << "no car to right";
                 lane += 1;
-                changing_lanes = true;
+                lane_changed = true;
               } else if (car_left[0] && !car_left[1] && lane > 0 ){
                 std::cout << "car to left not too close";
                 lane -= 1;
-                changing_lanes = true;
+                lane_changed = true;
               } else if (car_right[0] && !car_right[1] && lane < 2) {
                 std::cout << "car to right not too close";
                 lane += 1;
-                changing_lanes = true;
-              } else {
-                ref_val = car_ahead[2];
-                std::cout << "following car ahead";
+                lane_changed = true;
               }
-                ref_vel -= 0.224; // Reduce speed first
-                std::cout << "reducing speed before changing lane";
+
+
+
+              if (!lane_changed) {
+                if (ref_vel > car_ahead[2]) {
+                  ref_vel -= 0.224;
+                  std::cout << "\nfollowing car ahead";
+                } else {
+                  ref_vel = car_ahead[2];
+                }
+              }
 
 
               std::cout << std::endl;
@@ -286,9 +304,19 @@ int main() {
           }
 
           // In Frenet add evenly 30m spaced points ahead of the starting reference
-          vector<double> next_wp0 = getXY(car_s + 30, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 60, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 90, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp0;
+          vector<double> next_wp1;
+          vector<double> next_wp2;
+
+          if (changing_lanes) {
+            next_wp0 = getXY(car_s + 15, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            next_wp1 = getXY(car_s + 30, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            next_wp2 = getXY(car_s + 45, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          } else {
+            next_wp0 = getXY(car_s + 30, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            next_wp1 = getXY(car_s + 60, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            next_wp2 = getXY(car_s + 90, (2 + 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          }
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);
@@ -340,7 +368,7 @@ int main() {
           // Fill up the rest of our path planner after filling it with previous points, here we will always output 50 points
           for(int i = 1; i <= 50 - previous_path_x.size(); i++) {
             if (ref_vel < 49.5 && changing_lanes) {
-              std::cout << "increasing speed - car ahead not too close\n";
+              std::cout << "increasing speed - changing lanes - car ahead not too close\n";
               ref_vel += 0.224;
             }
 
@@ -364,8 +392,6 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
-
-          changing_lanes = false;
 
           json msgJson;
           msgJson["next_x"] = next_x_vals;
