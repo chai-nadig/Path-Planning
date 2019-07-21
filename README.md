@@ -2,31 +2,20 @@
 
 ### The car is able to drive at least 4.32 miles without incident.
 
-#### 4.36 miles
+### 4.36 miles
 ![4.36 miles](4.36miles.png)
 
-#### 6 miles
+### 6 miles
 ![6 miles](6miles.png)
 
-#### 10 miles
+### 10 miles
 ![10 miles](10miles.png)
 
-### The car drives according to the speed limit.
-No speed limit red message was seen.
-
-### Max Acceleration and Jerk are not Exceeded.
-Max jerk red message was not seen.
-
-### Car does not have collisions.
-No collisions.
-
-### The car stays in its lane, except for the time between changing lanes.
-The car stays in its lane most of the time except when it changes lane because of traffic.
-
-### The car is able to change lanes
-The car change lanes when the there is a slow car in front of it, and it is safe to change lanes (no other cars around).
+### Lane Change Left
 
 ![Lane Change Left](lane_change_left.png)
+
+### Lane Change Right
 
 ![Lane Change Right](lane_change_right.png)
 
