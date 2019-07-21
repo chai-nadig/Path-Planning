@@ -185,8 +185,6 @@ int main() {
           }
 
 
-
-
           // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
           // Later we will interpolate these waypoints with a spline and fill it in with more points that control speed.
 
@@ -315,6 +313,7 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
+
           changing_lanes=false;
 
           json msgJson;
