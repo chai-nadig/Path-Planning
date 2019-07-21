@@ -203,17 +203,18 @@ int main() {
           for (int i = 0; i < sensor_fusion.size(); i++) {
             double d = sensor_fusion[i][6];
 
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+
+            double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
+            double check_car_s = sensor_fusion[i][5];
+
+            check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
+
             if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
               car_ahead[0] = 1;
               car_ahead[1] = lane;
 
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-
-              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
               if ((check_car_s > car_s) && ((check_car_s - car_s) < 30) && check_car_s < car_ahead_min_s) {
                 car_ahead[2] = 1;
                 car_ahead[3] = check_speed;
@@ -223,13 +224,6 @@ int main() {
               car_right[0] = 1;
               car_right[1] = lane + 1;
 
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-
-              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
               if (abs(check_car_s - car_s) < 30) {
                 car_right[2] = 1;
               }
@@ -237,13 +231,6 @@ int main() {
               car_left[0] = 1;
               car_left[1] = lane - 1;
 
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-
-              double check_speed = sqrt(pow(vx, 2) + pow(vy, 2));
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double) prev_size * 0.02 * check_speed); // if using previous points, can project s values outwards in time
               if (abs(check_car_s - car_s) < 30) {
                 car_left[2] = 1;
               }
